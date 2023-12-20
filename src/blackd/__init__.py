@@ -6,6 +6,8 @@ from functools import partial
 from multiprocessing import freeze_support
 from typing import Set, Tuple
 
+import isort
+
 try:
     from aiohttp import web
 
@@ -174,6 +176,13 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
                 executor,
                 partial(black.diff, req_str, formatted_str, src_name, dst_name),
             )
+
+        formatted_str = isort.code(
+            formatted_str,
+            profile="black",
+            line_length=line_length,
+            multi_line_output=3,
+        )
 
         return web.Response(
             content_type=request.content_type,
