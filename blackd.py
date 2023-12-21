@@ -273,3 +273,10 @@ if __name__ == "__main__":
     )
 
     patched_main()
+
+    """
+    usage:
+    pip install black isort aiohttp
+    python blackd.py
+    install the pycharm plugin BlackConnect 
+    """
