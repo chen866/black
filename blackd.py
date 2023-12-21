@@ -4,26 +4,60 @@ from concurrent.futures import Executor, ProcessPoolExecutor
 from datetime import datetime, timezone
 from functools import partial
 from multiprocessing import freeze_support
-from typing import Set, Tuple
-
-import isort
-
-try:
-    from aiohttp import web
-
-    from .middlewares import cors
-except ImportError as ie:
-    raise ImportError(
-        f"aiohttp dependency is not installed: {ie}. "
-        + "Please re-install black with the '[d]' extra install "
-        + "to obtain aiohttp_cors: `pip install black[d]`"
-    ) from None
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Set, Tuple, TypeVar
 
 import click
+import isort
+from _black_version import version as __version__
+from aiohttp import web
+from aiohttp.web_request import Request
+from aiohttp.web_response import StreamResponse
 
 import black
-from _black_version import version as __version__
 from black.concurrency import maybe_install_uvloop
+
+# middlewares.py start
+if TYPE_CHECKING:
+    F = TypeVar("F", bound=Callable[..., Any])
+    middleware: Callable[[F], F]
+else:
+    try:
+        from aiohttp.web_middlewares import middleware
+    except ImportError:
+        # @middleware is deprecated and its behaviour is the default since aiohttp 4.0
+        # so if it doesn't exist anymore, define a no-op for forward compatibility.
+        middleware = lambda x: x  # noqa: E731
+
+Handler = Callable[[Request], Awaitable[StreamResponse]]
+Middleware = Callable[[Request, Handler], Awaitable[StreamResponse]]
+
+
+def cors(allow_headers: Iterable[str]) -> Middleware:
+    @middleware
+    async def impl(request: Request, handler: Handler) -> StreamResponse:
+        is_options = request.method == "OPTIONS"
+        is_preflight = is_options and "Access-Control-Request-Method" in request.headers
+        if is_preflight:
+            resp = StreamResponse()
+        else:
+            resp = await handler(request)
+
+        origin = request.headers.get("Origin")
+        if not origin:
+            return resp
+
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Expose-Headers"] = "*"
+        if is_options:
+            resp.headers["Access-Control-Allow-Headers"] = ", ".join(allow_headers)
+            resp.headers["Access-Control-Allow-Methods"] = ", ".join(("OPTIONS", "POST"))
+
+        return resp
+
+    return impl
+
+
+# middlewares.py end
 
 # This is used internally by tests to shut down the server prematurely
 _stop_signal = asyncio.Event()
@@ -67,9 +101,7 @@ class InvalidVariantHeader(Exception):
     default="localhost",
     show_default=True,
 )
-@click.option(
-    "--bind-port", type=int, help="Port to listen on", default=45484, show_default=True
-)
+@click.option("--bind-port", type=int, help="Port to listen on", default=45484, show_default=True)
 @click.version_option(version=black.__version__)
 def main(bind_host: str, bind_port: int) -> None:
     logging.basicConfig(level=logging.INFO)
@@ -80,9 +112,7 @@ def main(bind_host: str, bind_port: int) -> None:
 
 
 def make_app() -> web.Application:
-    app = web.Application(
-        middlewares=[cors(allow_headers=(*BLACK_HEADERS, "Content-Type"))]
-    )
+    app = web.Application(middlewares=[cors(allow_headers=(*BLACK_HEADERS, "Content-Type"))])
     executor = ProcessPoolExecutor()
     app.add_routes([web.post("/", partial(handle, executor=executor))])
     return app
@@ -92,13 +122,9 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
     headers = {BLACK_VERSION_HEADER: __version__}
     try:
         if request.headers.get(PROTOCOL_VERSION_HEADER, "1") != "1":
-            return web.Response(
-                status=501, text="This server only supports protocol version 1"
-            )
+            return web.Response(status=501, text="This server only supports protocol version 1")
         try:
-            line_length = int(
-                request.headers.get(LINE_LENGTH_HEADER, black.DEFAULT_LINE_LENGTH)
-            )
+            line_length = int(request.headers.get(LINE_LENGTH_HEADER, black.DEFAULT_LINE_LENGTH))
         except ValueError:
             return web.Response(status=400, text="Invalid line length header value")
 
@@ -115,15 +141,9 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
             pyi = False
             versions = set()
 
-        skip_string_normalization = bool(
-            request.headers.get(SKIP_STRING_NORMALIZATION_HEADER, False)
-        )
-        skip_magic_trailing_comma = bool(
-            request.headers.get(SKIP_MAGIC_TRAILING_COMMA, False)
-        )
-        skip_source_first_line = bool(
-            request.headers.get(SKIP_SOURCE_FIRST_LINE, False)
-        )
+        skip_string_normalization = bool(request.headers.get(SKIP_STRING_NORMALIZATION_HEADER, False))
+        skip_magic_trailing_comma = bool(request.headers.get(SKIP_MAGIC_TRAILING_COMMA, False))
+        skip_source_first_line = bool(request.headers.get(SKIP_SOURCE_FIRST_LINE, False))
         preview = bool(request.headers.get(PREVIEW, False))
         fast = False
         if request.headers.get(FAST_OR_SAFE_HEADER, "safe") == "fast":
@@ -141,6 +161,14 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
         charset = request.charset if request.charset is not None else "utf8"
         req_str = req_bytes.decode(charset)
         then = datetime.now(timezone.utc)
+
+        formatted_str = req_str
+        formatted_str = isort.code(
+            formatted_str,
+            # profile="black",
+            line_length=line_length,
+            **isort_config,
+        )
 
         header = ""
         if skip_source_first_line:
@@ -239,4 +267,9 @@ def patched_main() -> None:
 
 
 if __name__ == "__main__":
+    isort_config = dict(
+        multi_line_output=3,
+        known_first_party=[],
+    )
+
     patched_main()
