@@ -206,13 +206,6 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
                 partial(black.diff, req_str, formatted_str, src_name, dst_name),
             )
 
-        formatted_str = isort.code(
-            formatted_str,
-            profile="black",
-            line_length=line_length,
-            multi_line_output=3,
-        )
-
         return web.Response(
             content_type=request.content_type,
             charset=charset,
