@@ -162,7 +162,14 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
         req_str = req_bytes.decode(charset)
         then = datetime.now(timezone.utc)
 
+        header = ""
+        if skip_source_first_line:
+            first_newline_position: int = req_str.find("\n") + 1
+            header = req_str[:first_newline_position]
+            req_str = req_str[first_newline_position:]
+
         formatted_str = req_str
+
         formatted_str = isort.code(
             formatted_str,
             # profile="black",
@@ -170,15 +177,9 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
             **isort_config,
         )
 
-        header = ""
-        if skip_source_first_line:
-            first_newline_position: int = req_str.find("\n") + 1
-            header = req_str[:first_newline_position]
-            req_str = req_str[first_newline_position:]
-
         loop = asyncio.get_event_loop()
         formatted_str = await loop.run_in_executor(
-            executor, partial(black.format_file_contents, req_str, fast=fast, mode=mode)
+            executor, partial(black.format_file_contents, formatted_str, fast=fast, mode=mode)
         )
 
         # Preserve CRLF line endings
