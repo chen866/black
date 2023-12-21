@@ -168,18 +168,15 @@ async def handle(request: web.Request, executor: Executor) -> web.Response:
             header = req_str[:first_newline_position]
             req_str = req_str[first_newline_position:]
 
-        formatted_str = req_str
-
-        formatted_str = isort.code(
-            formatted_str,
-            # profile="black",
+        req_str = isort.code(
+            req_str,
             line_length=line_length,
             **isort_config,
         )
 
         loop = asyncio.get_event_loop()
         formatted_str = await loop.run_in_executor(
-            executor, partial(black.format_file_contents, formatted_str, fast=fast, mode=mode)
+            executor, partial(black.format_file_contents, req_str, fast=fast, mode=mode)
         )
 
         # Preserve CRLF line endings
