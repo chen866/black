@@ -258,9 +258,11 @@ def patched_main() -> None:
 
 
 if __name__ == "__main__":
+    # https://pycqa.github.io/isort/docs/configuration/options.html
     isort_config = dict(
         multi_line_output=3,
         known_first_party=[],
+        include_trailing_comma=True,
     )
 
     patched_main()
