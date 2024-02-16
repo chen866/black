@@ -2,7 +2,7 @@
 
 # version
 ```powershell
-$version='1.2.3'
+$version='1.2.4'
 sed -i "s/version = .*/version = '$version'/" pyproject.toml
 sed -i "s/blackd-.*-py3-none-any.whl/blackd-$version-py3-none-any.whl/" Dockerfile
 ```

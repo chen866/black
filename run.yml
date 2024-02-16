@@ -1,0 +1,10 @@
+version: '3'
+services:
+  blackd:
+    image: registry.cn-shanghai.aliyuncs.com/chen866/blackd:latest
+    container_name: blackd
+    restart: always
+    volumes:
+      - /opt/known_first_party:/opt/known_first_party
+    ports:
+      - 45484:45484
