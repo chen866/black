@@ -1,19 +1,19 @@
 import asyncio
 import logging
+import os
 from concurrent.futures import Executor, ProcessPoolExecutor
 from datetime import datetime, timezone
 from functools import partial
 from multiprocessing import freeze_support
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Set, Tuple, TypeVar
 
+import black
 import click
 import isort
 from _black_version import version as __version__
 from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import StreamResponse
-
-import black
 from black.concurrency import maybe_install_uvloop
 
 # middlewares.py start
@@ -98,13 +98,12 @@ class InvalidVariantHeader(Exception):
     "--bind-host",
     type=str,
     help="Address to bind the server to.",
-    default="localhost",
+    default="0.0.0.0",
     show_default=True,
 )
 @click.option("--bind-port", type=int, help="Port to listen on", default=45484, show_default=True)
 @click.version_option(version=black.__version__)
 def main(bind_host: str, bind_port: int) -> None:
-    logging.basicConfig(level=logging.INFO)
     app = make_app()
     ver = black.__version__
     black.out(f"blackd version {ver} listening on {bind_host} port {bind_port}")
@@ -257,16 +256,33 @@ def patched_main() -> None:
     main()
 
 
-if __name__ == "__main__":
-    # https://pycqa.github.io/isort/docs/configuration/options.html
-    isort_config = dict(
-        multi_line_output=3,
-        known_first_party=[],
-        include_trailing_comma=True,
-    )
+logging.basicConfig(level=logging.DEBUG)
 
+# known_first_party config
+fp = "./known_first_party"
+known_first_party = []
+if os.path.exists(fp):
+    with open(fp, "r") as f:
+        known_first_party = [s.strip() for s in f.read().splitlines()]
+
+known_first_party = [s for s in known_first_party if s and not s.startswith("#")]
+logging.info(f"known_first_party: {known_first_party}")
+
+
+# https://pycqa.github.io/isort/docs/configuration/options.html
+isort_config = dict(
+    multi_line_output=3,
+    known_first_party=known_first_party,
+    include_trailing_comma=True,
+)
+
+
+def run():
     patched_main()
 
+
+if __name__ == "__main__":
+    run()
     """
     usage:
     pip install black isort aiohttp
