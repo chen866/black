@@ -1,0 +1,24 @@
+[project]
+name = "blackd"
+version = '1.2.3'
+description = "Default template for PDM package"
+authors = []
+dependencies = [
+    "black>=24.2.0",
+    "isort>=5.13.2",
+    "aiohttp>=3.9.3",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
+pypi-registry = "http://pypi.chinx.site:8059/simple/"
+[project.optional-dependencies]
+dev = [
+]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
